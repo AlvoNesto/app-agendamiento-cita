@@ -1,41 +1,170 @@
-service: app-agendamiento-cita
-
+service: appointments-service
 frameworkVersion: '3'
 
 provider:
   name: aws
-  runtime: nodejs16.x
-  architecture: arm64
-  stage: production
-  region: us-west-2
-  memorySize: 2048
-  logRetentionInDays: 1
-  timeout: 15
-
-functions:
-  users:
-    handler: src/users/handler.handler
-    events:
-      - http:
-          path: users
-          method: get
-
-# Jetpack optimiza el empaquetado
-package:
-  individually: true  # Muy importante para Jetpack
-  excludeDevDependencies: false  # Jetpack maneja esto mejor
-
-custom:
-  jetpack:
-    include:
-      - src/**           # Asegura que tus fuentes estén incluidas
-      - node_modules/**  # Jetpack filtrará lo innecesario
-    ignore:
-      - test/**
-      - coverage/**
-      - .vscode/**
-      - .git/**
+  runtime: nodejs18.x
+  region: us-east-1
+  environment:
+    APPOINTMENTS_TABLE: ${self:service}-appointments-${sls:stage}
+    APPOINTMENTS_TOPIC: !Ref AppointmentsTopic
+    CONFIRMATIONS_QUEUE: !Ref ConfirmationsQueue
 
 plugins:
-  - serverless-jetpack
+  - serverless-esbuild
   - serverless-offline
+
+package:
+  individually: true
+
+functions:
+  # Lambda principal con NestJS (API HTTP)
+  appointmentApi:
+    handler: src/appointment/handler.main
+    events:
+      - httpApi:
+          path: /appointments
+          method: post
+      - httpApi:
+          path: /appointments/{insuredId}
+          method: get
+      - sqs:
+          arn: !GetAtt ConfirmationsQueue.Arn
+
+  # Consumers regionales
+  appointmentPe:
+    handler: src/appointment_pe/handler.main
+    events:
+      - sqs:
+          arn: !GetAtt SQSPe.Arn
+
+  appointmentCl:
+    handler: src/appointment_cl/handler.main
+    events:
+      - sqs:
+          arn: !GetAtt SQSCl.Arn
+
+resources:
+  Resources:
+    # DynamoDB
+    AppointmentsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.APPOINTMENTS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: appointmentId
+            AttributeType: S
+          - AttributeName: insuredId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: appointmentId
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: insuredId-index
+            KeySchema:
+              - AttributeName: insuredId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+
+    # SNS topic
+    AppointmentsTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: appointments-topic
+
+    # SQS por país
+    SQSPe:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: appointments-pe
+
+    SQSCl:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: appointments-cl
+
+    # SNS → SQS con filtros
+    SubscriptionPe:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: !Ref AppointmentsTopic
+        Protocol: sqs
+        Endpoint: !GetAtt SQSPe.Arn
+        FilterPolicy:
+          countryISO: ["PE"]
+
+    SubscriptionCl:
+      Type: AWS::SNS::Subscription
+      Properties:
+        TopicArn: !Ref AppointmentsTopic
+        Protocol: sqs
+        Endpoint: !GetAtt SQSCl.Arn
+        FilterPolicy:
+          countryISO: ["CL"]
+
+    # EventBridge bus
+    AppointmentBus:
+      Type: AWS::Events::EventBus
+      Properties:
+        Name: appointments-bus
+
+    # Cola de confirmaciones
+    ConfirmationsQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: appointments-confirmations
+
+    # EventBridge → SQS (conformidad)
+    AppointmentRule:
+      Type: AWS::Events::Rule
+      Properties:
+        EventBusName: !Ref AppointmentBus
+        EventPattern:
+          source:
+            - "appointment.confirmed"
+        Targets:
+          - Arn: !GetAtt ConfirmationsQueue.Arn
+            Id: TargetConfirmations
+
+    # Permisos SNS → SQS
+    SQSPePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref SQSPe
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal: "*"
+              Action: "sqs:SendMessage"
+              Resource: !GetAtt SQSPe.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !Ref AppointmentsTopic
+
+    SQSClPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref SQSCl
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal: "*"
+              Action: "sqs:SendMessage"
+              Resource: !GetAtt SQSCl.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !Ref AppointmentsTopic
+
+custom:
+  esbuild:
+    bundle: true
+    minify: true
+    sourcemap: true
+    exclude: ['aws-sdk']
+    target: node18
+    platform: node
+    concurrency: 10
