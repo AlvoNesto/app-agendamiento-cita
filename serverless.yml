@@ -1,0 +1,41 @@
+service: app-agendamiento-cita
+
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: nodejs16.x
+  architecture: arm64
+  stage: production
+  region: us-west-2
+  memorySize: 2048
+  logRetentionInDays: 1
+  timeout: 15
+
+functions:
+  users:
+    handler: src/users/handler.handler
+    events:
+      - http:
+          path: users
+          method: get
+
+# Jetpack optimiza el empaquetado
+package:
+  individually: true  # Muy importante para Jetpack
+  excludeDevDependencies: false  # Jetpack maneja esto mejor
+
+custom:
+  jetpack:
+    include:
+      - src/**           # Asegura que tus fuentes estén incluidas
+      - node_modules/**  # Jetpack filtrará lo innecesario
+    ignore:
+      - test/**
+      - coverage/**
+      - .vscode/**
+      - .git/**
+
+plugins:
+  - serverless-jetpack
+  - serverless-offline
