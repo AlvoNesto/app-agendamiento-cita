@@ -33,13 +33,13 @@ functions:
 
   # Consumers regionales
   appointmentPe:
-    handler: src/appointment_pe/handler.main
+    handler: src/appointment-pe/handler.main
     events:
       - sqs:
           arn: !GetAtt SQSPe.Arn
 
   appointmentCl:
-    handler: src/appointment_cl/handler.main
+    handler: src/appointment-cl/handler.main
     events:
       - sqs:
           arn: !GetAtt SQSCl.Arn
@@ -168,3 +168,8 @@ custom:
     target: node18
     platform: node
     concurrency: 10
+    external:
+      - '@nestjs/microservices'
+      - '@nestjs/microservices/microservices-module'
+      - '@nestjs/websockets'
+      - '@nestjs/websockets/socket-module'
