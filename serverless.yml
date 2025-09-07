@@ -1,14 +1,19 @@
-service: appointments-service
-frameworkVersion: '3'
+service: medical-appointment-system
+
+frameworkVersion: "3"
 
 provider:
   name: aws
   runtime: nodejs18.x
   region: us-east-1
   environment:
-    APPOINTMENTS_TABLE: ${self:service}-appointments-${sls:stage}
-    APPOINTMENTS_TOPIC: !Ref AppointmentsTopic
-    CONFIRMATIONS_QUEUE: !Ref ConfirmationsQueue
+    APPOINTMENT_TABLE: AppointmentTable
+    SNS_TOPIC: !Ref AppointmentTopic
+    EVENT_BUS: AppointmentEventBus
+    MYSQL_HOST: mydb.cluster-xxxx.us-east-1.rds.amazonaws.com
+    MYSQL_USER: admin
+    MYSQL_PASS: password123
+    MYSQL_DB: appointments
 
 plugins:
   - serverless-esbuild
@@ -18,9 +23,8 @@ package:
   individually: true
 
 functions:
-  # Lambda principal con NestJS (API HTTP)
-  appointmentApi:
-    handler: src/appointment/handler.main
+  appointment:
+    handler: appointment/infrastructure/handler.main
     events:
       - httpApi:
           path: /appointments
@@ -30,134 +34,168 @@ functions:
           method: get
       - sqs:
           arn: !GetAtt ConfirmationsQueue.Arn
+    iamRoleStatements:
+      - Effect: "Allow"
+        Action:
+          - dynamodb:PutItem
+          - dynamodb:Query
+          - dynamodb:UpdateItem
+        Resource: !GetAtt AppointmentTable.Arn
+      - Effect: "Allow"
+        Action: sns:Publish
+        Resource: !Ref AppointmentTopic
+      - Effect: "Allow"
+        Action:
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+        Resource: !GetAtt ConfirmationsQueue.Arn
 
-  # Consumers regionales
   appointmentPe:
-    handler: src/appointment-pe/handler.main
+    handler: appointment-processor/infrastructure/handlers/pe.main
     events:
       - sqs:
-          arn: !GetAtt SQSPe.Arn
+          arn: !GetAtt SQSPE.Arn
+    iamRoleStatements:
+      - Effect: "Allow"
+        Action:
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+        Resource: !GetAtt SQSPE.Arn
+      - Effect: "Allow"
+        Action: rds-data:ExecuteStatement
+        Resource: arn:aws:rds:us-east-1:123456789012:cluster:appointments # ARN de la RDS
+      - Effect: "Allow"
+        Action: events:PutEvents
+        Resource: !GetAtt AppointmentEventBus.Arn
 
   appointmentCl:
-    handler: src/appointment-cl/handler.main
+    handler: appointment-processor/infrastructure/handlers/cl.main
     events:
       - sqs:
-          arn: !GetAtt SQSCl.Arn
+          arn: !GetAtt SQSCL.Arn
+    iamRoleStatements:
+      - Effect: "Allow"
+        Action:
+          - sqs:ReceiveMessage
+          - sqs:DeleteMessage
+        Resource: !GetAtt SQSCL.Arn
+      - Effect: "Allow"
+        Action: rds-data:ExecuteStatement
+        Resource: arn:aws:rds:us-east-1:123456789012:cluster:appointments # ARN de la RDS
+      - Effect: "Allow"
+        Action: events:PutEvents
+        Resource: !GetAtt AppointmentEventBus.Arn
 
 resources:
   Resources:
-    # DynamoDB
-    AppointmentsTable:
+    AppointmentTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: ${self:provider.environment.APPOINTMENTS_TABLE}
-        BillingMode: PAY_PER_REQUEST
+        TableName: AppointmentTable
         AttributeDefinitions:
-          - AttributeName: appointmentId
-            AttributeType: S
           - AttributeName: insuredId
             AttributeType: S
+          - AttributeName: scheduleId
+            AttributeType: N
         KeySchema:
-          - AttributeName: appointmentId
+          - AttributeName: insuredId
             KeyType: HASH
-        GlobalSecondaryIndexes:
-          - IndexName: insuredId-index
-            KeySchema:
-              - AttributeName: insuredId
-                KeyType: HASH
-            Projection:
-              ProjectionType: ALL
+          - AttributeName: scheduleId
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
 
-    # SNS topic
-    AppointmentsTopic:
+    AppointmentTopic:
       Type: AWS::SNS::Topic
       Properties:
-        TopicName: appointments-topic
+        TopicName: AppointmentTopic
 
-    # SQS por país
-    SQSPe:
+    SQSPE:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: appointments-pe
-
-    SQSCl:
+        QueueName: SQS_PE
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt SQSPE_DLQ.Arn
+          maxReceiveCount: 5
+    
+    SQSPE_DLQ:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: appointments-cl
+        QueueName: SQS_PE_DLQ
 
-    # SNS → SQS con filtros
-    SubscriptionPe:
+    SQSCL:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: SQS_CL
+        RedrivePolicy:
+          deadLetterTargetArn: !GetAtt SQSCL_DLQ.Arn
+          maxReceiveCount: 5
+
+    SQSCL_DLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: SQS_CL_DLQ
+    
+    SubscriptionPE:
       Type: AWS::SNS::Subscription
       Properties:
-        TopicArn: !Ref AppointmentsTopic
         Protocol: sqs
-        Endpoint: !GetAtt SQSPe.Arn
+        TopicArn: !Ref AppointmentTopic
+        Endpoint: !GetAtt SQSPE.Arn
         FilterPolicy:
-          countryISO: ["PE"]
+          countryISO:
+            - "PE"
 
-    SubscriptionCl:
+    SubscriptionCL:
       Type: AWS::SNS::Subscription
       Properties:
-        TopicArn: !Ref AppointmentsTopic
         Protocol: sqs
-        Endpoint: !GetAtt SQSCl.Arn
+        TopicArn: !Ref AppointmentTopic
+        Endpoint: !GetAtt SQSCL.Arn
         FilterPolicy:
-          countryISO: ["CL"]
-
-    # EventBridge bus
-    AppointmentBus:
-      Type: AWS::Events::EventBus
+          countryISO:
+            - "CL"
+    
+    SQSPEPolicy:
+      Type: AWS::SQS::QueuePolicy
       Properties:
-        Name: appointments-bus
+        Queues:
+          - !Ref SQSPE
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal: "*"
+              Action: sqs:SendMessage
+              Resource: !GetAtt SQSPE.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !Ref AppointmentTopic
 
-    # Cola de confirmaciones
+    SQSCLPolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref SQSCL
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal: "*"
+              Action: sqs:SendMessage
+              Resource: !GetAtt SQSCL.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !Ref AppointmentTopic
+
     ConfirmationsQueue:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: appointments-confirmations
+        QueueName: AppointmentConfirmations
 
-    # EventBridge → SQS (conformidad)
-    AppointmentRule:
-      Type: AWS::Events::Rule
+    AppointmentEventBus:
+      Type: AWS::Events::EventBus
       Properties:
-        EventBusName: !Ref AppointmentBus
-        EventPattern:
-          source:
-            - "appointment.confirmed"
-        Targets:
-          - Arn: !GetAtt ConfirmationsQueue.Arn
-            Id: TargetConfirmations
-
-    # Permisos SNS → SQS
-    SQSPePolicy:
-      Type: AWS::SQS::QueuePolicy
-      Properties:
-        Queues:
-          - !Ref SQSPe
-        PolicyDocument:
-          Statement:
-            - Effect: Allow
-              Principal: "*"
-              Action: "sqs:SendMessage"
-              Resource: !GetAtt SQSPe.Arn
-              Condition:
-                ArnEquals:
-                  aws:SourceArn: !Ref AppointmentsTopic
-
-    SQSClPolicy:
-      Type: AWS::SQS::QueuePolicy
-      Properties:
-        Queues:
-          - !Ref SQSCl
-        PolicyDocument:
-          Statement:
-            - Effect: Allow
-              Principal: "*"
-              Action: "sqs:SendMessage"
-              Resource: !GetAtt SQSCl.Arn
-              Condition:
-                ArnEquals:
-                  aws:SourceArn: !Ref AppointmentsTopic
+        Name: AppointmentEventBus
 
 custom:
   esbuild:
