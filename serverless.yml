@@ -10,10 +10,14 @@ provider:
     APPOINTMENT_TABLE: AppointmentTable
     SNS_TOPIC: !Ref AppointmentTopic
     EVENT_BUS: AppointmentEventBus
-    MYSQL_HOST: mydb.cluster-xxxx.us-east-1.rds.amazonaws.com
-    MYSQL_USER: admin
-    MYSQL_PASS: password123
-    MYSQL_DB: appointments
+    MYSQL_PE_HOST: mydb.cluster-pe.us-east-1.rds.amazonaws.com
+    MYSQL_PE_USER: admin
+    MYSQL_PE_PASS: password
+    MYSQL_PE_DB: appointmentspe
+    MYSQL_CL_HOST: mydb.cluster-cl.us-east-1.rds.amazonaws.com
+    MYSQL_CL_USER: admin
+    MYSQL_CL_PASS: password
+    MYSQL_CL_DB: appointmentscl
   iam:
     role:
       statements:
@@ -62,13 +66,13 @@ functions:
           arn: !GetAtt ConfirmationsQueue.Arn
 
   appointmentPe:
-    handler: src/appointment-processor/infrastructure/handlers/pe.main
+    handler: src/appointment-pe/infrastructure/handler.main
     events:
       - sqs:
           arn: !GetAtt SQSPE.Arn
 
   appointmentCl:
-    handler: src/appointment-processor/infrastructure/handlers/cl.main
+    handler: src/appointment-cl/infrastructure/handler.main
     events:
       - sqs:
           arn: !GetAtt SQSCL.Arn
