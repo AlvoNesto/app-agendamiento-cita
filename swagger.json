@@ -1,0 +1,81 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/appointments": {
+      "post": {
+        "operationId": "AppointmentController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppointmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        }
+      }
+    },
+    "/appointments/{insuredId}": {
+      "get": {
+        "operationId": "AppointmentController_list",
+        "parameters": [
+          {
+            "name": "insuredId",
+            "required": true,
+            "in": "path",
+            "description": "Número de seguro médico",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        }
+      }
+    }
+  },
+  "info": {
+    "title": "Appointments API",
+    "description": "API para agendamiento",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "schemas": {
+      "CreateAppointmentDto": {
+        "type": "object",
+        "properties": {
+          "insuredId": {
+            "type": "string",
+            "description": "Número de seguro médico"
+          },
+          "scheduleId": {
+            "type": "number",
+            "description": "Número de orden de cita"
+          },
+          "countryISO": {
+            "type": "string",
+            "description": "País en formato ISO (ejemplo: CL, PE)"
+          }
+        },
+        "required": [
+          "insuredId",
+          "scheduleId",
+          "countryISO"
+        ]
+      }
+    }
+  }
+}
