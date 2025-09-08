@@ -50,7 +50,7 @@ package:
 
 functions:
   appointment:
-    handler: src/appointment/infrastructure/handler.main
+    handler: dist/appointment/infrastructure/handler.main
     events:
       - httpApi:
           path: /appointments
