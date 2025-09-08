@@ -8,7 +8,7 @@ export class AppointmentClService {
   ) {}
 
   async processAppointment(data: any) {
-    // await this.repository.save(data);
+    await this.repository.save(data);
     await this.publisher.publish(data);
   }
 }
