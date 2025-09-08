@@ -1,13 +1,18 @@
-import { EventBridge } from "aws-sdk";
+import { EventBridgeClient, PutEventsCommand } from "@aws-sdk/client-eventbridge";
 import { ConfirmationPublisher } from "../domain/confirmation.publisher";
 import { AppointmentEvent } from "../domain/appointment.event";
 
 export class EventBridgeConfirmationPublisher implements ConfirmationPublisher<AppointmentEvent> {
-  private eb = new EventBridge();
-  private busName = process.env.EVENT_BUS!;
+  private eb: EventBridgeClient;
+  private busName: string;
+
+  constructor() {
+    this.eb = new EventBridgeClient({});
+    this.busName = process.env.EVENT_BUS!;
+  }
 
   async publish(event: AppointmentEvent): Promise<void> {
-    await this.eb.putEvents({
+    const command = new PutEventsCommand({
       Entries: [
         {
           Source: `appointment.${event.countryISO.toLowerCase()}`,
@@ -16,6 +21,8 @@ export class EventBridgeConfirmationPublisher implements ConfirmationPublisher<A
           EventBusName: this.busName,
         },
       ],
-    }).promise();
+    });
+
+    await this.eb.send(command);
   }
 }

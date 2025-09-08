@@ -1,40 +1,41 @@
-import { DynamoDB } from "aws-sdk";
+import { DynamoDBClient, PutItemCommand, QueryCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { Appointment } from "../domain/appointment.entity";
 import { AppointmentRepository } from "../domain/appointment.repository";
 
 export class DynamoDBAppointmentRepository implements AppointmentRepository {
-  private client = new DynamoDB.DocumentClient();
+  private client = new DynamoDBClient({});
   private tableName = process.env.APPOINTMENT_TABLE!;
 
   async save(appointment: Appointment) {
-    await this.client
-      .put({
+    await this.client.send(
+      new PutItemCommand({
         TableName: this.tableName,
-        Item: appointment,
+        Item: marshall(appointment),
       })
-      .promise();
+    );
   }
 
   async findByInsuredId(insuredId: string) {
-    const res = await this.client
-      .query({
+    const res = await this.client.send(
+      new QueryCommand({
         TableName: this.tableName,
         KeyConditionExpression: "insuredId = :i",
-        ExpressionAttributeValues: { ":i": insuredId },
+        ExpressionAttributeValues: { ":i": { S: insuredId } },
       })
-      .promise();
-    return res.Items;
+    );
+    return res.Items?.map((i) => unmarshall(i));
   }
 
   async updateStatus(insuredId: string, scheduleId: number, status: string) {
-    await this.client
-      .update({
+    await this.client.send(
+      new UpdateItemCommand({
         TableName: this.tableName,
-        Key: { insuredId, scheduleId },
+        Key: marshall({ insuredId, scheduleId }),
         UpdateExpression: "set #s = :s",
         ExpressionAttributeNames: { "#s": "status" },
-        ExpressionAttributeValues: { ":s": status },
+        ExpressionAttributeValues: marshall({ ":s": status }),
       })
-      .promise();
+    );
   }
 }

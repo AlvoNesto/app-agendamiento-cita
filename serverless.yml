@@ -183,13 +183,42 @@ resources:
       Type: AWS::Events::EventBus
       Properties:
         Name: AppointmentEventBus
+    
+    ConfirmationsQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref ConfirmationsQueue
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt ConfirmationsQueue.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !GetAtt AppointmentRule.Arn
+
+    AppointmentRule:
+      Type: AWS::Events::Rule
+      Properties:
+        Name: AppointmentEventBusToQueueRule
+        EventBusName: !Ref AppointmentEventBus
+        EventPattern:
+          source:
+            - "appointment.pe"
+            - "appointment.cl"
+        Targets:
+          - Id: "SendAllEventsToQueue"
+            Arn: !GetAtt ConfirmationsQueue.Arn
 
 custom:
   esbuild:
     bundle: true
     minify: true
     sourcemap: true
-    exclude: ['aws-sdk']
     target: node18
     platform: node
     concurrency: 10
