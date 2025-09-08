@@ -17,7 +17,8 @@ export const main = async (event: any, context: Context) => {
     for (const rec of event.Records) {
       const raw = JSON.parse(rec.body);
       const payload = raw.Message ? JSON.parse(raw.Message) : raw;
-      await service.completeAppointment(payload.insuredId, payload.scheduleId);
+      const detail = payload.detail || {};
+      await service.completeAppointment(detail.insuredId, detail.scheduleId);
     }
     return { statusCode: 200, body: 'SQS processed' };
   }

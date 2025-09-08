@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DynamoDBClient, PutItemCommand, QueryCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { Appointment } from "../domain/appointment.entity";
@@ -13,7 +13,7 @@ export class DynamoDBAppointmentRepository implements AppointmentRepository {
     await this.client.send(
       new PutItemCommand({
         TableName: this.tableName,
-        Item: marshall(appointment),
+        Item: marshall(appointment, { convertClassInstanceToMap: true, removeUndefinedValues: true }),
       })
     );
   }
@@ -23,10 +23,9 @@ export class DynamoDBAppointmentRepository implements AppointmentRepository {
       new QueryCommand({
         TableName: this.tableName,
         KeyConditionExpression: "insuredId = :i",
-        ExpressionAttributeValues: { ":i": { S: insuredId } },
+        ExpressionAttributeValues: marshall({ ":i": insuredId }, { removeUndefinedValues: true }),
       })
     );
-    console.log(res);
     return (res.Items && res.Items.length > 0) ? res.Items.map((i) => unmarshall(i)) : [];
   }
 
@@ -34,10 +33,10 @@ export class DynamoDBAppointmentRepository implements AppointmentRepository {
     await this.client.send(
       new UpdateItemCommand({
         TableName: this.tableName,
-        Key: marshall({ insuredId, scheduleId }),
-        UpdateExpression: "set #s = :s",
+        Key: marshall({ insuredId, scheduleId }, { removeUndefinedValues: true }),
+        UpdateExpression: "SET #s = :s",
         ExpressionAttributeNames: { "#s": "status" },
-        ExpressionAttributeValues: marshall({ ":s": status }),
+        ExpressionAttributeValues: marshall({ ":s": status }, { removeUndefinedValues: true }),
       })
     );
   }
