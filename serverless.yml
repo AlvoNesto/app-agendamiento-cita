@@ -14,6 +14,32 @@ provider:
     MYSQL_USER: admin
     MYSQL_PASS: password123
     MYSQL_DB: appointments
+  iam:
+    role:
+      statements:
+        - Effect: "Allow"
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:Query
+            - dynamodb:UpdateItem
+          Resource: !GetAtt AppointmentTable.Arn
+        - Effect: "Allow"
+          Action: sns:Publish
+          Resource: !Ref AppointmentTopic
+        - Effect: "Allow"
+          Action:
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+          Resource:
+            - !GetAtt ConfirmationsQueue.Arn
+            - !GetAtt SQSPE.Arn
+            - !GetAtt SQSCL.Arn
+        - Effect: "Allow"
+          Action: rds-data:ExecuteStatement
+          Resource: arn:aws:rds:us-east-1:123456789012:cluster:appointments
+        - Effect: "Allow"
+          Action: events:PutEvents
+          Resource: !GetAtt AppointmentEventBus.Arn
 
 plugins:
   - serverless-esbuild
@@ -24,7 +50,7 @@ package:
 
 functions:
   appointment:
-    handler: appointment/infrastructure/handler.main
+    handler: src/appointment/infrastructure/handler.main
     events:
       - httpApi:
           path: /appointments
@@ -34,57 +60,18 @@ functions:
           method: get
       - sqs:
           arn: !GetAtt ConfirmationsQueue.Arn
-    iamRoleStatements:
-      - Effect: "Allow"
-        Action:
-          - dynamodb:PutItem
-          - dynamodb:Query
-          - dynamodb:UpdateItem
-        Resource: !GetAtt AppointmentTable.Arn
-      - Effect: "Allow"
-        Action: sns:Publish
-        Resource: !Ref AppointmentTopic
-      - Effect: "Allow"
-        Action:
-          - sqs:ReceiveMessage
-          - sqs:DeleteMessage
-        Resource: !GetAtt ConfirmationsQueue.Arn
 
   appointmentPe:
-    handler: appointment-processor/infrastructure/handlers/pe.main
+    handler: src/appointment-processor/infrastructure/handlers/pe.main
     events:
       - sqs:
           arn: !GetAtt SQSPE.Arn
-    iamRoleStatements:
-      - Effect: "Allow"
-        Action:
-          - sqs:ReceiveMessage
-          - sqs:DeleteMessage
-        Resource: !GetAtt SQSPE.Arn
-      - Effect: "Allow"
-        Action: rds-data:ExecuteStatement
-        Resource: arn:aws:rds:us-east-1:123456789012:cluster:appointments # ARN de la RDS
-      - Effect: "Allow"
-        Action: events:PutEvents
-        Resource: !GetAtt AppointmentEventBus.Arn
 
   appointmentCl:
-    handler: appointment-processor/infrastructure/handlers/cl.main
+    handler: src/appointment-processor/infrastructure/handlers/cl.main
     events:
       - sqs:
           arn: !GetAtt SQSCL.Arn
-    iamRoleStatements:
-      - Effect: "Allow"
-        Action:
-          - sqs:ReceiveMessage
-          - sqs:DeleteMessage
-        Resource: !GetAtt SQSCL.Arn
-      - Effect: "Allow"
-        Action: rds-data:ExecuteStatement
-        Resource: arn:aws:rds:us-east-1:123456789012:cluster:appointments # ARN de la RDS
-      - Effect: "Allow"
-        Action: events:PutEvents
-        Resource: !GetAtt AppointmentEventBus.Arn
 
 resources:
   Resources:
@@ -109,31 +96,31 @@ resources:
       Properties:
         TopicName: AppointmentTopic
 
+    SQSPEDLQ:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: SQS_PE_DLQ
+    
     SQSPE:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: SQS_PE
         RedrivePolicy:
-          deadLetterTargetArn: !GetAtt SQSPE_DLQ.Arn
+          deadLetterTargetArn: !GetAtt SQSPEDLQ.Arn
           maxReceiveCount: 5
     
-    SQSPE_DLQ:
+    SQSCLDLQ:
       Type: AWS::SQS::Queue
       Properties:
-        QueueName: SQS_PE_DLQ
+        QueueName: SQS_CL_DLQ
 
     SQSCL:
       Type: AWS::SQS::Queue
       Properties:
         QueueName: SQS_CL
         RedrivePolicy:
-          deadLetterTargetArn: !GetAtt SQSCL_DLQ.Arn
+          deadLetterTargetArn: !GetAtt SQSCLDLQ.Arn
           maxReceiveCount: 5
-
-    SQSCL_DLQ:
-      Type: AWS::SQS::Queue
-      Properties:
-        QueueName: SQS_CL_DLQ
     
     SubscriptionPE:
       Type: AWS::SNS::Subscription
@@ -211,3 +198,4 @@ custom:
       - '@nestjs/microservices/microservices-module'
       - '@nestjs/websockets'
       - '@nestjs/websockets/socket-module'
+      - 'class-transformer/storage'
