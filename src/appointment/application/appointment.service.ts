@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { Appointment } from '../domain/appointment.entity';
-import { DynamoDBRepository } from '../infrastructure/dynamodb.repository';
-import { SnsPublisher } from '../infrastructure/sns.publisher';
+import { DynamoDBAppointmentRepository } from '../infrastructure/dynamodb-appointment.repository';
+import { SnsRecievedPublisher } from '../infrastructure/sns-recieved.publisher';
 
 @Injectable()
 export class AppointmentService {
   constructor(
-    private readonly repository: DynamoDBRepository,
-    private readonly publisher: SnsPublisher,
+    private readonly repository: DynamoDBAppointmentRepository,
+    private readonly publisher: SnsRecievedPublisher,
   ) {}
 
   async createAppointment(insuredId: string, scheduleId: number, countryISO: string) {

@@ -1,8 +1,8 @@
 import { EventBridge } from "aws-sdk";
-import { EventPublisher } from "../domain/eventbridge.repository";
+import { ConfirmationPublisher } from "../domain/confirmation.publisher";
 import { AppointmentEvent } from "../domain/appointment.event";
 
-export class EventBridgePublisher implements EventPublisher<AppointmentEvent> {
+export class EventBridgeConfirmationPublisher implements ConfirmationPublisher<AppointmentEvent> {
   private eb = new EventBridge();
   private busName = process.env.EVENT_BUS!;
 

@@ -1,8 +1,8 @@
 import { AppointmentClService } from "../../application/appointment-processor.service";
 import { MysqlAppointmentRepository } from "../mysql-appointment.repository";
-import { EventBridgePublisher } from "../eventbridge.publisher";
+import { EventBridgeConfirmationPublisher } from "../eventbridge-confirmation.publisher";
 
-const service = new AppointmentClService(new MysqlAppointmentRepository(), new EventBridgePublisher());
+const service = new AppointmentClService(new MysqlAppointmentRepository(), new EventBridgeConfirmationPublisher());
 
 export const main = async (event: any) => {
   for (const record of event.Records) {

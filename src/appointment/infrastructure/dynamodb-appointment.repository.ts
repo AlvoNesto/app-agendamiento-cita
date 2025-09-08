@@ -2,7 +2,7 @@ import { DynamoDB } from "aws-sdk";
 import { Appointment } from "../domain/appointment.entity";
 import { AppointmentRepository } from "../domain/appointment.repository";
 
-export class DynamoDBRepository implements AppointmentRepository {
+export class DynamoDBAppointmentRepository implements AppointmentRepository {
   private client = new DynamoDB.DocumentClient();
   private tableName = process.env.APPOINTMENT_TABLE!;
 

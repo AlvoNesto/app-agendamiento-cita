@@ -1,7 +1,8 @@
 import { SNS } from 'aws-sdk';
 import { Appointment } from '../domain/appointment.entity';
+import { RecievedPublisher } from "../domain/recieved.publisher";
 
-export class SnsPublisher {
+export class SnsRecievedPublisher implements RecievedPublisher {
   private snsClient = new SNS();
   private topicArn = process.env.SNS_TOPIC!;
 

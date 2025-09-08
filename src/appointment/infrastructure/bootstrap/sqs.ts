@@ -4,7 +4,7 @@ import { AppointmentModule } from '../appointment.module';
 
 let cached: INestApplicationContext | null = null;
 
-export const getWorkerContext = async (): Promise<INestApplicationContext> => {
+export const getContext = async (): Promise<INestApplicationContext> => {
   if (!cached) {
     cached = await NestFactory.createApplicationContext(AppointmentModule, { logger: ['error','warn','log'] });
   }
