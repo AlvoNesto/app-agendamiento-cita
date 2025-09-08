@@ -1,8 +1,10 @@
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { DynamoDBClient, PutItemCommand, QueryCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { Appointment } from "../domain/appointment.entity";
 import { AppointmentRepository } from "../domain/appointment.repository";
 
+@Injectable()
 export class DynamoDBAppointmentRepository implements AppointmentRepository {
   private client = new DynamoDBClient({});
   private tableName = process.env.APPOINTMENT_TABLE!;
@@ -24,7 +26,8 @@ export class DynamoDBAppointmentRepository implements AppointmentRepository {
         ExpressionAttributeValues: { ":i": { S: insuredId } },
       })
     );
-    return res.Items?.map((i) => unmarshall(i));
+    console.log(res);
+    return (res.Items && res.Items.length > 0) ? res.Items.map((i) => unmarshall(i)) : [];
   }
 
   async updateStatus(insuredId: string, scheduleId: number, status: string) {

@@ -1,7 +1,9 @@
+import { Injectable } from '@nestjs/common';
 import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 import { Appointment } from "../domain/appointment.entity";
 import { RecievedPublisher } from "../domain/recieved.publisher";
 
+@Injectable()
 export class SnsRecievedPublisher implements RecievedPublisher {
   private snsClient: SNSClient;
   private topicArn: string;

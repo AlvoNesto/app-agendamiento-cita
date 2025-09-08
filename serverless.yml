@@ -1,4 +1,4 @@
-service: medical-appointment-system
+service: rimac
 
 frameworkVersion: "3"
 
@@ -227,4 +227,5 @@ custom:
       - '@nestjs/microservices/microservices-module'
       - '@nestjs/websockets'
       - '@nestjs/websockets/socket-module'
+      - 'class-transformer'
       - 'class-transformer/storage'
