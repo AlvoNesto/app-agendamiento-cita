@@ -30,7 +30,7 @@
             "name": "insuredId",
             "required": true,
             "in": "path",
-            "description": "Número de seguro médico",
+            "description": "Número de seguro médico (5 dígitos)",
             "schema": {
               "type": "string"
             }
@@ -59,7 +59,7 @@
         "properties": {
           "insuredId": {
             "type": "string",
-            "description": "Número de seguro médico"
+            "description": "Número de seguro médico (5 dígitos)"
           },
           "scheduleId": {
             "type": "number",
@@ -67,7 +67,7 @@
           },
           "countryISO": {
             "type": "string",
-            "description": "País en formato ISO (ejemplo: CL, PE)"
+            "description": "País en formato ISO (solo puede ser CL o PE)"
           }
         },
         "required": [

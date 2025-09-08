@@ -3,7 +3,7 @@ import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateAppointmentDto {
   @ApiProperty({
-    description: 'Número de seguro médico',
+    description: 'Número de seguro médico (5 dígitos)',
   })
   @IsString()
   @IsNotEmpty()
@@ -20,7 +20,7 @@ export class CreateAppointmentDto {
   scheduleId!: number;
 
   @ApiProperty({
-    description: 'País en formato ISO (ejemplo: CL, PE)',
+    description: 'País en formato ISO (solo puede ser CL o PE)',
   })
   @IsString()
   @IsNotEmpty()
