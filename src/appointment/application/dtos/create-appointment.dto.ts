@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsNumber } from 'class-validator';
+import { IsString, Matches, IsIn, IsNumber, IsNotEmpty } from 'class-validator';
 import { ApiProperty } from "@nestjs/swagger";
 
 export class CreateAppointmentDto {
@@ -7,12 +7,16 @@ export class CreateAppointmentDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\d{5}$/, {
+    message: 'El insuredId debe ser un código de 5 dígitos (incluyendo ceros a la izquierda)',
+  })
   insuredId!: string;
 
   @ApiProperty({
-    description: 'Número de orden de cita',
+    description: 'Espacio para agendar la cita',
   })
-  @IsNumber()
+  @IsNotEmpty()
+  @IsNumber({}, { message: 'El scheduleId debe ser un número' })
   scheduleId!: number;
 
   @ApiProperty({
@@ -20,5 +24,8 @@ export class CreateAppointmentDto {
   })
   @IsString()
   @IsNotEmpty()
+  @IsIn(['PE', 'CL'], {
+    message: 'El countryISO solo puede ser "PE" o "CL"',
+  })
   countryISO!: string;
 }

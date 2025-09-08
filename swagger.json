@@ -63,7 +63,7 @@
           },
           "scheduleId": {
             "type": "number",
-            "description": "Número de orden de cita"
+            "description": "Espacio para agendar la cita"
           },
           "countryISO": {
             "type": "string",
